@@ -122,7 +122,7 @@ def build_msm_hints_and_fill_memory(ids: VmConsts, memory: MemoryDict):
         len(rlc_sum_dlog_div_coeffs) == 18 + 4 * 2
     ), f"len(rlc_sum_dlog_div_coeffs) == {len(rlc_sum_dlog_div_coeffs)} != {18 + 4*2}"
 
-    offset = 4
+    offset = 28
     fill_elmts_at_index(
         rlc_sum_dlog_div_coeffs, ids.range_check96_ptr, memory, 4, offset
     )

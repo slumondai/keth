@@ -18,6 +18,7 @@ from cairo_core.maths import unsigned_div_rem, assert_uint256_le
 from cairo_ec.curve_utils import scalar_to_epns
 from cairo_ec.curve.g1_point import G1Point
 from cairo_ec.circuit_utils import N_LIMBS, hash_full_transcript
+from cairo_ec.circuits.ec_ops_compiled import ecip_2P
 from cairo_ec.curve.ids import CurveID
 from cairo_ec.ec_ops import ec_add, try_get_point_from_x, get_random_point
 from cairo_ec.uint384 import (
@@ -209,7 +210,7 @@ func try_recover_public_key{
     hash_full_transcript(cast(generator_point, felt*), 2);
     hash_full_transcript(cast(&r_point, felt*), 2);
     // Q_low, Q_high, Q_high_shifted (filled by prover) (50 - 55).
-    hash_full_transcript(range_check96_ptr + 4 + 50 * N_LIMBS, 3 * 2);
+    hash_full_transcript(range_check96_ptr + 4 + 56 * N_LIMBS, 3 * 2);
     let _s0 = [cast(poseidon_ptr, felt*) - 3];
     let _s1 = [cast(poseidon_ptr, felt*) - 2];
     let _s2 = [cast(poseidon_ptr, felt*) - 1];
@@ -226,20 +227,17 @@ func try_recover_public_key{
     let rlc_coeff_u384 = felt_to_uint384(rlc_coeff);
 
     // Hash SumDlogDiv 2 points : (4-29)
-    hash_full_transcript(range_check96_ptr + 4 * N_LIMBS, 26);
+    hash_full_transcript(range_check96_ptr + 10 * N_LIMBS, 26);
     tempvar range_check96_ptr_init = range_check96_ptr;
-    tempvar range_check96_ptr_after_circuit = range_check96_ptr + 224 + (4 + 117 + 108 - 1) *
-        N_LIMBS;
+    tempvar range_check96_ptr_after_circuit = range_check96_ptr + 5052;
     let random_point = get_random_point{range_check96_ptr=range_check96_ptr_after_circuit}(
         seed=[cast(poseidon_ptr, felt*) - 3], a=&a, b=&b, g=&g, p=&p
     );
-
-    tempvar range_check96_ptr_final = range_check96_ptr_after_circuit;
     let range_check96_ptr = range_check96_ptr_init;
 
     // Circuits inputs
 
-    let ecip_input: UInt384* = cast(range_check96_ptr, UInt384*);
+    let ecip_input: UInt384* = cast(range_check96_ptr + 6 * N_LIMBS, UInt384*);
     // Constants (0-3)
     assert ecip_input[0] = g;
     assert ecip_input[1] = UInt384(0, 0, 0, 0);
@@ -291,29 +289,72 @@ func try_recover_public_key{
     // base_rlc
     assert ecip_input[59] = rlc_coeff_u384;
 
-    let (add_offsets_ptr, mul_offsets_ptr) = get_full_ecip_2P_circuit();
-    assert add_mod_ptr[0] = ModBuiltin(
-        p=p, values_ptr=cast(range_check96_ptr, UInt384*), offsets_ptr=add_offsets_ptr, n=117
+    ecip_2P(
+        &ecip_input[0],
+        &ecip_input[1],
+        &ecip_input[2],
+        &ecip_input[3],
+        &ecip_input[4],
+        &ecip_input[5],
+        &ecip_input[6],
+        &ecip_input[7],
+        &ecip_input[8],
+        &ecip_input[9],
+        &ecip_input[10],
+        &ecip_input[11],
+        &ecip_input[12],
+        &ecip_input[13],
+        &ecip_input[14],
+        &ecip_input[15],
+        &ecip_input[16],
+        &ecip_input[17],
+        &ecip_input[18],
+        &ecip_input[19],
+        &ecip_input[20],
+        &ecip_input[21],
+        &ecip_input[22],
+        &ecip_input[23],
+        &ecip_input[24],
+        &ecip_input[25],
+        &ecip_input[26],
+        &ecip_input[27],
+        &ecip_input[28],
+        &ecip_input[29],
+        &ecip_input[30],
+        &ecip_input[31],
+        &ecip_input[32],
+        &ecip_input[33],
+        &ecip_input[34],
+        &ecip_input[35],
+        &ecip_input[36],
+        &ecip_input[37],
+        &ecip_input[38],
+        &ecip_input[39],
+        &ecip_input[40],
+        &ecip_input[41],
+        &ecip_input[42],
+        &ecip_input[43],
+        &ecip_input[44],
+        &ecip_input[45],
+        &ecip_input[46],
+        &ecip_input[47],
+        &ecip_input[48],
+        &ecip_input[49],
+        &ecip_input[50],
+        &ecip_input[51],
+        &ecip_input[52],
+        &ecip_input[53],
+        &ecip_input[54],
+        &ecip_input[55],
+        &ecip_input[56],
+        &ecip_input[57],
+        &ecip_input[58],
+        &ecip_input[59],
+        &p
     );
-    assert mul_mod_ptr[0] = ModBuiltin(
-        p=p, values_ptr=cast(range_check96_ptr, UInt384*), offsets_ptr=mul_offsets_ptr, n=108
-    );
 
-    %{
-        from starkware.cairo.lang.builtins.modulo.mod_builtin_runner import ModBuiltinRunner
-        assert builtin_runners["add_mod_builtin"].instance_def.batch_size == 1
-        assert builtin_runners["mul_mod_builtin"].instance_def.batch_size == 1
+    let range_check96_ptr = range_check96_ptr_after_circuit;
 
-        ModBuiltinRunner.fill_memory(
-            memory=memory,
-            add_mod=(ids.add_mod_ptr.address_, builtin_runners["add_mod_builtin"], 117),
-            mul_mod=(ids.mul_mod_ptr.address_, builtin_runners["mul_mod_builtin"], 108),
-        )
-    %}
-
-    tempvar range_check96_ptr = range_check96_ptr_final;
-    let add_mod_ptr = add_mod_ptr + 117 * ModBuiltin.SIZE;
-    let mul_mod_ptr = mul_mod_ptr + 108 * ModBuiltin.SIZE;
     let res = ec_add(
         G1Point(x=ecip_input[50], y=ecip_input[51]),
         G1Point(x=ecip_input[54], y=ecip_input[55]),
