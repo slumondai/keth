@@ -1088,14 +1088,14 @@ func _apply_body_inner{
         ),
     );
 
-    let (gas_used, tuple_logs, optional_error) = process_transaction{env=env}(tx);
+    let (gas_used, logs, error) = process_transaction{env=env}(tx);
     let state = env.value.state;
 
     // Safe because gas_used <= gas_available
     tempvar gas_available = Uint(gas_available.value - gas_used.value);
 
     tempvar receipt_gas = Uint(block_gas_limit.value - gas_available.value);
-    let receipt = make_receipt(tx, optional_error, receipt_gas, tuple_logs);
+    let receipt = make_receipt(tx, error, receipt_gas, logs);
 
     // TODO: call transactions_trie_set
     // trie_set(
@@ -1113,9 +1113,8 @@ func _apply_body_inner{
         assert blob_gas_within_bounds = 1;
     }
 
-    let index = index + 1;
     return _apply_body_inner(
-        index,
+        index + 1,
         len,
         transactions,
         gas_available,
