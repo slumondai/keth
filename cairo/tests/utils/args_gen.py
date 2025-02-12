@@ -1182,6 +1182,9 @@ def generate_dict_arg(
         ]
     )
 
+    all_preimages = {poseidon_hash_many(k) if len(k) > 1 else k: k for k in data.keys()}
+    data["preimages"] = all_preimages
+
     segments.load_data(dict_ptr, initial_data)
     current_ptr = dict_ptr + len(initial_data)
 

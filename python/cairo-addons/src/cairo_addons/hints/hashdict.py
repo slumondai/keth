@@ -8,6 +8,8 @@ from cairo_addons.hints.decorator import register_hint
 
 @register_hint
 def hashdict_read(dict_manager: DictManager, ids: VmConsts, memory: MemoryDict):
+    from starkware.cairo.lang.vm.crypto import poseidon_hash_many
+
     dict_tracker = dict_manager.get_tracker(ids.dict_ptr)
     dict_tracker.current_ptr += ids.DictAccess.SIZE
     preimage = tuple([memory[ids.key + i] for i in range(ids.key_len)])
@@ -17,6 +19,12 @@ def hashdict_read(dict_manager: DictManager, ids: VmConsts, memory: MemoryDict):
         ids.value = value
     else:
         ids.value = dict_tracker.data.default_factory()
+
+    # Register the preimage in a special sub-dict of the tracker.
+    logged_key = poseidon_hash_many(preimage) if len(preimage) > 1 else preimage[0]
+    if not isinstance(dict_tracker.data.get("preimages"), dict):
+        dict_tracker.data["preimages"] = {}
+    dict_tracker.data["preimages"][logged_key] = preimage
 
 
 @register_hint
@@ -46,6 +54,14 @@ def hashdict_write(dict_manager: DictManager, ids: VmConsts, memory: MemoryDict)
     else:
         ids.dict_ptr.prev_value = dict_tracker.data.default_factory()
     dict_tracker.data[preimage] = ids.new_value
+
+    # Register the preimage in a special sub-dict of the tracker.
+    from starkware.cairo.lang.vm.crypto import poseidon_hash_many
+
+    logged_key = poseidon_hash_many(preimage) if len(preimage) > 1 else preimage[0]
+    if not isinstance(dict_tracker.data.get("preimages"), dict):
+        dict_tracker.data["preimages"] = {}
+    dict_tracker.data["preimages"][logged_key] = preimage
 
 
 @register_hint
@@ -95,22 +111,23 @@ def copy_hashdict_tracker_entry(dict_manager: DictManager, ids: VmConsts):
     dict_tracker.data[preimage] = obj_tracker.data[preimage]
 
 
+@register_hint
+def copy_preimages(dict_manager: DictManager, ids: VmConsts):
+    src_tracker = dict_manager.get_tracker(ids.src_dict_end.address_)
+    dst_tracker = dict_manager.get_tracker(ids.dst_dict_end.address_)
+    dst_tracker.data["preimages"] = src_tracker.data["preimages"].copy()
+
+
 def _get_preimage_for_hashed_key(
     hashed_key: int,
     dict_tracker: DictTracker,
 ) -> tuple:
-    from starkware.cairo.lang.vm.crypto import poseidon_hash_many
 
-    # Get the key in the dict that matches the hashed value
-    preimage = next(
-        key
-        for key in dict_tracker.data.keys()
-        if (
-            key[0] == hashed_key
-            if len(key) == 1
-            else poseidon_hash_many(key) == hashed_key
-        )
-    )
+    if not isinstance(dict_tracker.data.get("preimages"), dict):
+        raise Exception("No preimages found")
+    if hashed_key not in dict_tracker.data["preimages"]:
+        raise Exception("No preimage found for hashed key")
+    preimage = dict_tracker.data["preimages"][hashed_key]
     return preimage
 
 
