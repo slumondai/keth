@@ -1192,6 +1192,8 @@ def generate_dict_arg(
             data=data, current_ptr=current_ptr
         )
         # Set a new field in the dict_manager to store all preimages.
+        if not hasattr(dict_manager, "preimages"):
+            dict_manager.preimages = {}
         dict_manager.preimages.update(all_preimages)
     else:
         default_value = (
