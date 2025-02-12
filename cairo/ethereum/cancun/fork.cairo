@@ -1186,9 +1186,9 @@ func _apply_body_inner{
         return (blob_gas_used, gas_available, block_logs);
     }
 
-    let tx = decode_transaction(transactions.value.data[index]);
+    let encoded_tx = transactions.value.data[index];
+    let tx = decode_transaction(encoded_tx);
     let encoded_index = encode_uint(Uint(index));
-    let encoded_tx = encode_transaction(tx);
 
     trie_set_TrieBytesOptionalUnionBytesLegacyTransaction{trie=transactions_trie}(
         encoded_index, OptionalUnionBytesLegacyTransaction(encoded_tx.value)
@@ -1224,7 +1224,7 @@ func _apply_body_inner{
     );
 
     let (gas_used, logs, error) = process_transaction{env=env}(tx);
-    let state = env.value.state;
+    tempvar state = env.value.state;
 
     // Safe because gas_used <= gas_available
     tempvar gas_available = Uint(gas_available.value - gas_used.value);
@@ -1246,7 +1246,9 @@ func _apply_body_inner{
         assert blob_gas_within_bounds = 1;
     }
 
-    return _apply_body_inner(
+    return _apply_body_inner{
+        state=state, transactions_trie=transactions_trie, receipts_trie=receipts_trie
+    }(
         index + 1,
         len,
         transactions,
