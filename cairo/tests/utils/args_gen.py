@@ -1183,7 +1183,6 @@ def generate_dict_arg(
     )
 
     all_preimages = {poseidon_hash_many(k) if len(k) > 1 else k: k for k in data.keys()}
-    data["preimages"] = all_preimages
 
     segments.load_data(dict_ptr, initial_data)
     current_ptr = dict_ptr + len(initial_data)
@@ -1192,6 +1191,8 @@ def generate_dict_arg(
         dict_manager.trackers[dict_ptr.segment_index] = DictTracker(
             data=data, current_ptr=current_ptr
         )
+        # Set a new field in the dict_manager to store all preimages.
+        dict_manager.preimages.update(all_preimages)
     else:
         default_value = (
             data.default_factory() if isinstance(data, defaultdict) else None

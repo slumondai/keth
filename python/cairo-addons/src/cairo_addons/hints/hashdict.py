@@ -1,4 +1,4 @@
-from starkware.cairo.common.dict import DictManager, DictTracker
+from starkware.cairo.common.dict import DictManager
 from starkware.cairo.lang.vm.memory_dict import MemoryDict
 from starkware.cairo.lang.vm.memory_segments import MemorySegmentManager
 from starkware.cairo.lang.vm.vm_consts import VmConsts
@@ -21,10 +21,8 @@ def hashdict_read(dict_manager: DictManager, ids: VmConsts, memory: MemoryDict):
         ids.value = dict_tracker.data.default_factory()
 
     # Register the preimage in a special sub-dict of the tracker.
-    logged_key = poseidon_hash_many(preimage) if len(preimage) > 1 else preimage[0]
-    if not isinstance(dict_tracker.data.get("preimages"), dict):
-        dict_tracker.data["preimages"] = {}
-    dict_tracker.data["preimages"][logged_key] = preimage
+    hashed_key = poseidon_hash_many(preimage) if len(preimage) > 1 else preimage[0]
+    dict_manager.preimages[hashed_key] = preimage
 
 
 @register_hint
@@ -36,7 +34,7 @@ def hashdict_read_from_key(
 
     dict_tracker = dict_manager.get_tracker(ids.dict_ptr_stop)
     try:
-        preimage = _get_preimage_for_hashed_key(ids.key, dict_tracker) or ids.key
+        preimage = _get_preimage_for_hashed_key(ids.key, dict_manager) or ids.key
     except Exception:
         ids.value = dict_tracker.data.default_factory()
     else:
@@ -58,10 +56,8 @@ def hashdict_write(dict_manager: DictManager, ids: VmConsts, memory: MemoryDict)
     # Register the preimage in a special sub-dict of the tracker.
     from starkware.cairo.lang.vm.crypto import poseidon_hash_many
 
-    logged_key = poseidon_hash_many(preimage) if len(preimage) > 1 else preimage[0]
-    if not isinstance(dict_tracker.data.get("preimages"), dict):
-        dict_tracker.data["preimages"] = {}
-    dict_tracker.data["preimages"][logged_key] = preimage
+    hashed_key = poseidon_hash_many(preimage) if len(preimage) > 1 else preimage[0]
+    dict_manager.preimages[hashed_key] = preimage
 
 
 @register_hint
@@ -93,11 +89,7 @@ def get_preimage_for_key(
 ):
     from cairo_addons.hints.hashdict import _get_preimage_for_hashed_key
 
-    preimage = list(
-        _get_preimage_for_hashed_key(
-            ids.key, dict_manager.get_tracker(ids.dict_ptr_stop)
-        )
-    )
+    preimage = list(_get_preimage_for_hashed_key(ids.key, dict_manager))
     segments.write_arg(ids.preimage_data, preimage)
     ids.preimage_len = len(preimage)
 
@@ -105,29 +97,19 @@ def get_preimage_for_key(
 @register_hint
 def copy_hashdict_tracker_entry(dict_manager: DictManager, ids: VmConsts):
     obj_tracker = dict_manager.get_tracker(ids.dict_ptr_stop.address_)
-    preimage = _get_preimage_for_hashed_key(ids.dict_ptr.key.value, obj_tracker)
+    preimage = _get_preimage_for_hashed_key(ids.dict_ptr.key.value, dict_manager)
     dict_tracker = dict_manager.get_tracker(ids.branch_ptr.address_)
     dict_tracker.current_ptr += ids.DictAccess.SIZE
     dict_tracker.data[preimage] = obj_tracker.data[preimage]
 
 
-@register_hint
-def copy_preimages(dict_manager: DictManager, ids: VmConsts):
-    src_tracker = dict_manager.get_tracker(ids.src_dict_end.address_)
-    dst_tracker = dict_manager.get_tracker(ids.dst_dict_end.address_)
-    dst_tracker.data["preimages"] = src_tracker.data["preimages"].copy()
-
-
 def _get_preimage_for_hashed_key(
     hashed_key: int,
-    dict_tracker: DictTracker,
+    dict_manager: DictManager,
 ) -> tuple:
-
-    if not isinstance(dict_tracker.data.get("preimages"), dict):
-        raise Exception("No preimages found")
-    if hashed_key not in dict_tracker.data["preimages"]:
+    if hashed_key not in dict_manager.preimages:
         raise Exception("No preimage found for hashed key")
-    preimage = dict_tracker.data["preimages"][hashed_key]
+    preimage = dict_manager.preimages[hashed_key]
     return preimage
 
 

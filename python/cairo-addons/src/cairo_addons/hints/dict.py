@@ -71,8 +71,6 @@ def copy_dict_segment(
         copied_data = {
             key: segments.gen_arg(value) for key, value in current_tracker.data.items()
         }
-        # manually keep the "preimages" key in the dict
-        copied_data["preimages"] = current_tracker.data["preimages"]
         dict_manager.trackers[base.segment_index] = DictTracker(
             data=defaultdict(
                 current_tracker.data.default_factory,
